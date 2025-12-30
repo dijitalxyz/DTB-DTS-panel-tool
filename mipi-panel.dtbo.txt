@@ -1,0 +1,78 @@
+"mipi-panel.dtbo" dosyası, genellikle embedded Linux sistemlerinde (Android tabanlı cihazlar, single-board computer'lar gibi Rockchip RK3326/RK3588, NXP i.MX8, Pine64 Quartz64, ODROID, Orange Pi, Banana Pi vb.) MIPI DSI arayüzlü bir LCD paneli etkinleştirmek için kullanılan bir Device Tree Overlay (DTBO) dosyasıdır.
+Bu dosya, ana device tree'ye (DTB) ek değişiklikler yaparak MIPI panelin tanınmasını, güç verilmesini ve çalışmasını sağlar.
+Nasıl Yapılır (Oluşturulur)?
+
+Temel Gereksinimler
+Device Tree Compiler (dtc) aracı yüklü olmalı (senin script'inde zaten dtc.exe kullanıyorsun).
+Panelin teknik datasheet'i (timing, resolution, init komutları vb.).
+Cihazının ana device tree kaynakları (kernel source veya mevcut .dtb dosyası).
+
+Adım Adım Oluşturma
+Device Tree Source (.dts veya .dtso) dosyası yazın
+Bu dosya, overlay syntax'ı ile yazılır. Başında /dts-v1/; /plugin/; olur.Örnek basit bir MIPI panel overlay (panel-simple driver kullanan bir panel için):
+
+/dts-v1/;
+/plugin/;
+
+&{/soc/dsi@ffe20000} {  // Cihazına göre DSI controller node'unu bul
+    status = "okay";
+
+    ports {
+        port@1 {
+            reg = <1>;
+            endpoint {
+                remote-endpoint = <&panel_in>;
+            };
+        };
+    };
+};
+
+&{/} {
+    panel: panel-mipi {
+        compatible = "simple-panel";  // Veya panelin özel driver'ı, örn: "sitronix,st7701"
+        status = "okay";
+
+        port {
+            panel_in: endpoint {
+                remote-endpoint = <&dsi_out>;
+            };
+        };
+
+        panel-timing {  // Datasheet'ten alınır
+            clock-frequency = <30000000>;
+            hactive = <800>;
+            vactive = <1280>;
+            hsync-len = <20>;
+            hback-porch = <40>;
+            hfront-porch = <40>;
+            vsync-len = <10>;
+            vback-porch = <20>;
+            vfront-porch = <20>;
+        };
+
+        power-supply = <&reg_panel>;  // Güç regülatörü varsa
+        backlight = <&backlight>;     // Backlight GPIO varsa
+    };
+};
+
+Daha karmaşık paneller için (init sequence gerekenler) özel driver (örn. panel-sitronix-st7701) kullanılır ve init komutları eklenir.
+Derleyin (.dtbo elde edin)
+
+
+dtc -@ -I dts -O dtb -o mipi-panel.dtbo mipi-panel.dts
+
+-@ parametresi sembolleri ekler (overlay için zorunlu).
+Android'de Kullanım (dtbo.img içine ekleme)
+AOSP build sırasında overlay .dts dosyasını kernel source'a ekleyip Makefile'e .dtbo olarak ekleyin.
+Build sonrası dtbo.img içinde olur ve bootloader (U-Boot) tarafından uygulanır.
+Diğer Sistemlerde (Rocknix, ODROID, Orange Pi vb.)
+Oluşturduğunuz mipi-panel.dtbo dosyasını /boot/overlays/ veya /flash/overlays/ klasörüne koyun.
+Sonra config dosyasında etkinleştirin (örn. overlays=mipi-panel veya FDTOVERLAYS=/boot/overlays/mipi-panel.dtbo).
+
+Hazır Örnekler ve Script'ler
+Bazı sistemlerde (Rocknix gibi) importpanel.py script'i mevcut .dtb'den otomatik panel overlay üretir:Bash
+
+
+
+
+https://lcdyk0517.github.io/dtbTools.html
